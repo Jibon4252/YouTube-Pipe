@@ -16,7 +16,7 @@
         <ImageView
             android:layout_width="104dp"
             android:layout_height="76dp"
-            android:contentDescription="YouTube-Pipe logo"
+            android:contentDescription="JR Play logo"
             android:src="@drawable/splash_logo"
             android:elevation="12dp" />
 
@@ -24,7 +24,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="24dp"
-            android:text="YouTube-Pipe"
+            android:text="JR Play"
             android:textColor="#FFFFFF"
             android:textSize="30sp"
             android:fontFamily="sans"
@@ -44,10 +44,11 @@
             style="?android:attr/progressBarStyleHorizontal"
             android:layout_width="150dp"
             android:layout_height="3dp"
-            android:layout_marginTop="34dp"
-            android:indeterminate="true"
+            android:layout_marginTop="34dp"  android:indeterminate="true"
             android:indeterminateTint="#FF424F"
-            android:progressTint="#FF424F" />
+        />
+
+
 
         <TextView
             android:id="@+id/splashStatus"

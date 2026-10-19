@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.widget.LinearLayout
+import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import java.net.HttpURLConnection
@@ -14,6 +15,7 @@ class SplashActivity : AppCompatActivity() {
     private val handler = Handler(Looper.getMainLooper())
     private var opened = false
     private lateinit var status: TextView
+    private lateinit var progress: ProgressBar
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -21,6 +23,8 @@ class SplashActivity : AppCompatActivity() {
 
         val container = findViewById<LinearLayout>(R.id.splashContainer)
         status = findViewById(R.id.splashStatus)
+        progress = findViewById(R.id.splashProgress)
+        progress.isIndeterminate = true
         container.alpha = 0f
         container.scaleX = 0.96f
         container.scaleY = 0.96f
@@ -36,10 +40,10 @@ class SplashActivity : AppCompatActivity() {
             handler.post {
                 if (!opened && !isFinishing) {
                     if (connected) {
-                        status.text = "Connection ready. Opening YouTube-Pipe..."
-                        handler.postDelayed({ openHome("Opening YouTube-Pipe...") }, 450)
+                        status.text = "Connection ready. Opening JR Play..."
+                        handler.postDelayed({ openHome("Opening JR Play...") }, 450)
                     } else {
-                        openHome("Opening app...")
+                        openHome("Service unavailable. Opening app...")
                     }
                 }
             }
