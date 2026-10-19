@@ -1,23 +1,37 @@
 package com.example.youtubepipe
 
 import android.content.Intent
+import android.app.DownloadManager
+import android.content.Context
+import android.net.Uri
+import android.os.Environment
+import android.content.ComponentName
 import android.os.Bundle
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import org.schabi.newpipe.extractor.NewPipe
 import androidx.appcompat.app.AppCompatActivity
+import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
+import androidx.media3.session.MediaController
+import androidx.media3.session.SessionToken
 import org.json.JSONObject
+import org.schabi.newpipe.extractor.NewPipe
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 
 class MainActivity : AppCompatActivity() {
     private lateinit var webView: WebView
+    private var controllerFuture: com.google.common.util.concurrent.ListenableFuture<MediaController>? = null
+    private var mediaController: MediaController? = null
+    private var pendingAudioUrl = ""
+    private var pendingAudioTitle = "JR Play"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         NewPipe.init(AndroidDownloader())
+
         webView = WebView(this)
         setContentView(webView)
 
@@ -25,14 +39,49 @@ class MainActivity : AppCompatActivity() {
         webView.settings.domStorageEnabled = true
         webView.webViewClient = WebViewClient()
         webView.addJavascriptInterface(WebAppInterface(this), "Android")
+        val sessionToken = SessionToken(
+            this,
+            ComponentName(this, PlaybackService::class.java)
+        )
+        controllerFuture = MediaController.Builder(this, sessionToken).buildAsync()
+        controllerFuture?.addListener({
+            try {
+                mediaController = controllerFuture?.get()
+                if (pendingAudioUrl.isNotBlank()) {
+                    playOnMediaController(pendingAudioUrl, pendingAudioTitle)
+                }
+            } catch (_: Exception) {
+                mediaController = null
+            }
+        }, Runnable::run)
+
         webView.loadUrl("file:///android_asset/index.html")
+    }
+
+    private fun playOnMediaController(url: String, title: String) {
+        val controller = mediaController ?: return
+        val item = MediaItem.Builder()
+            .setUri(url)
+            .setMediaMetadata(
+                MediaMetadata.Builder().setTitle(title).build()
+            )
+            .build()
+        controller.setMediaItem(item)
+        controller.prepare()
+        controller.play()
+    }
+
+    override fun onDestroy() {
+        controllerFuture?.let { MediaController.releaseFuture(it) }
+        controllerFuture = null
+        mediaController = null
+        super.onDestroy()
     }
 
     override fun onBackPressed() {
         if (::webView.isInitialized && webView.canGoBack()) {
             webView.goBack()
         } else {
-            // Stay on the Home screen instead of accidentally exiting the app.
             webView.evaluateJavascript(
                 "if(window.handleAndroidBack){window.handleAndroidBack()}",
                 null
@@ -54,8 +103,111 @@ class MainActivity : AppCompatActivity() {
                 sendResult("onSearchResult", """{"items":[]}""")
                 return
             }
+
             val encoded = URLEncoder.encode(query.trim(), "UTF-8")
-            requestInBackground("/search?q=$encoded&filter=videos", "onSearchResult")
+            requestInBackground(
+                "/search?q=$encoded&filter=videos",
+                "onSearchResult"
+            )
+        }
+
+        @JavascriptInterface
+        fun getVideoDetails(videoId: String) {
+            val id = videoId.trim()
+            if (id.isBlank()) {
+                sendResult(
+                    "onVideoDetailsResult",
+                    JSONObject().put("error", "Video ID is empty").toString()
+                )
+                return
+            }
+
+            val encoded = URLEncoder.encode(id, "UTF-8")
+            requestInBackground("/streams/$encoded", "onVideoDetailsResult")
+        }
+
+        @JavascriptInterface
+        fun playBackgroundAudio(url: String, title: String) {
+            val safeUrl = url.trim()
+            if (!safeUrl.startsWith("https://") && !safeUrl.startsWith("http://")) return
+            activity.runOnUiThread {
+                pendingAudioUrl = safeUrl
+                pendingAudioTitle = title.ifBlank { "JR Play" }
+                playOnMediaController(pendingAudioUrl, pendingAudioTitle)
+            }
+        }
+
+        @JavascriptInterface
+        fun downloadVideo(url: String, title: String) {
+            val safeUrl = url.trim()
+            if (!safeUrl.startsWith("https://") &&
+                !safeUrl.startsWith("http://")) {
+                sendResult(
+                    "onDownloadResult",
+                    JSONObject().put("error", "Invalid download URL").toString()
+                )
+                return
+            }
+
+            activity.runOnUiThread {
+                try {
+                    val safeTitle = title
+                        .replace(Regex("[^A-Za-z0-9._ -]"), "_")
+                        .trim()
+                        .take(80)
+                        .ifBlank { "JR_Play_Video" }
+
+                    val request = DownloadManager.Request(Uri.parse(safeUrl))
+                        .setTitle(safeTitle)
+                        .setDescription("JR Play ভিডিও ডাউনলোড")
+                        .setNotificationVisibility(
+                            DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED
+                        )
+                        .setAllowedOverMetered(true)
+                        .setAllowedOverRoaming(false)
+                        .setDestinationInExternalPublicDir(
+                            Environment.DIRECTORY_DOWNLOADS,
+                            "$safeTitle.mp4"
+                        )
+
+                    val manager = activity.getSystemService(
+                        Context.DOWNLOAD_SERVICE
+                    ) as DownloadManager
+                    val downloadId = manager.enqueue(request)
+
+                    sendResult(
+                        "onDownloadResult",
+                        JSONObject()
+                            .put("success", true)
+                            .put("id", downloadId)
+                            .put("message", "ডাউনলোড শুরু হয়েছে।")
+                            .toString()
+                    )
+                } catch (e: Exception) {
+                    sendResult(
+                        "onDownloadResult",
+                        JSONObject()
+                            .put("error", e.message ?: "ডাউনলোড শুরু করা যায়নি")
+                            .toString()
+                    )
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun exitApp() {
+            activity.runOnUiThread {
+                activity.finish()
+            }
+        }
+
+        @JavascriptInterface
+        fun openSettings() {
+            activity.runOnUiThread {
+                activity.startActivity(
+                    Intent(activity, SettingsActivity::class.java)
+                )
+            }
         }
 
         private fun requestInBackground(path: String, callback: String) {
@@ -67,29 +219,42 @@ class MainActivity : AppCompatActivity() {
 
         private fun fetchApi(path: String): String {
             var connection: HttpURLConnection? = null
+
             return try {
-                connection = (URL(baseUrl + path).openConnection() as HttpURLConnection).apply {
-                    requestMethod = "GET"
-                    connectTimeout = 10000
-                    readTimeout = 15000
-                    setRequestProperty("Accept", "application/json")
-                    setRequestProperty("User-Agent", "YouTube-Pipe/1.0")
-                }
+                connection =
+                    (URL(baseUrl + path).openConnection() as HttpURLConnection).apply {
+                        requestMethod = "GET"
+                        connectTimeout = 10000
+                        readTimeout = 15000
+                        setRequestProperty("Accept", "application/json")
+                        setRequestProperty("User-Agent", "YouTube-Pipe/1.0")
+                    }
 
                 val code = connection.responseCode
-                val stream = if (code in 200..299) connection.inputStream else connection.errorStream
-                val body = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
+                val stream = if (code in 200..299) {
+                    connection.inputStream
+                } else {
+                    connection.errorStream
+                }
+
+                val body = stream?.bufferedReader(Charsets.UTF_8)?.use {
+                    it.readText()
+                }
 
                 if (code in 200..299 && !body.isNullOrBlank()) {
                     body
                 } else {
-                    JSONObject().put("error", "Video service returned HTTP $code").toString()
+                    JSONObject()
+                        .put("error", "Video service returned HTTP $code")
+                        .toString()
                 }
             } catch (_: Exception) {
-                JSONObject().put(
-                    "error",
-                    "Unable to connect to video service. Check your internet and try again."
-                ).toString()
+                JSONObject()
+                    .put(
+                        "error",
+                        "Unable to connect to video service. Check your internet and try again."
+                    )
+                    .toString()
             } finally {
                 connection?.disconnect()
             }
@@ -101,13 +266,6 @@ class MainActivity : AppCompatActivity() {
                     "window.$callback && window.$callback(${JSONObject.quote(json)});",
                     null
                 )
-            }
-        }
-
-        @JavascriptInterface
-        fun openSettings() {
-            activity.runOnUiThread {
-                activity.startActivity(Intent(activity, SettingsActivity::class.java))
             }
         }
     }

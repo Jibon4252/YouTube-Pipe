@@ -173,7 +173,7 @@ footer{position:fixed;bottom:0;left:0;right:0;background:#151515f5;border-top:1p
      }catch(_){setStatus("ভিডিওটি লুকানো যায়নি।",false);}
     });
     card.appendChild(dismiss);
-   const selectVideo=()=>{setStatus("ভিডিও প্লেয়ার পরের ধাপে যুক্ত করা হবে। এই ভিডিওর তথ্য বাস্তব API থেকে এসেছে।",false);};
+   const later=document.createElement("button");later.type="button";later.className="not-interested";later.textContent="＋ Watch Later";later.addEventListener("click",event=>{event.stopPropagation();jrSaveVideo("jrplay_watch_later",video,200);setStatus("Watch Later-এ সেভ হয়েছে।",false);});card.appendChild(later);const selectVideo=()=>{playVideo(video);};
    card.addEventListener("click",selectVideo);
    card.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();selectVideo();}});
    fragment.appendChild(card);
@@ -191,8 +191,165 @@ footer{position:fixed;bottom:0;left:0;right:0;background:#151515f5;border-top:1p
  window.onTrendingResult=function(raw){handleResponse(raw,"trending",requestNumber);};
  window.onSearchResult=function(raw){handleResponse(raw,"search",requestNumber);};
 
+
+ const dock=document.createElement("section");
+ dock.id="jrPlayer";
+ dock.hidden=true;
+ dock.style.cssText="position:fixed;z-index:99;left:7px;right:7px;bottom:68px;background:#172033;color:white;padding:10px;border-radius:12px;border:1px solid #44516b";
+ dock.innerHTML='<div style="display:flex;gap:8px;align-items:center"><b id="jrTitle" style="flex:1"></b><button id="jrMini">ছোট</button><button id="jrClose">বন্ধ</button></div><button id="jrBackground" style="margin-top:8px;width:100%">ব্যাকগ্রাউন্ডে চালাও</button><button id="jrDownload" style="margin-top:6px;width:100%">ভিডিও ডাউনলোড</button><video id="jrVideo" controls playsinline style="width:100%;max-height:35vh;background:#000;margin-top:8px"></video><div id="jrStatus" style="font-size:12px;margin-top:5px"></div><div id="jrDesc" style="font-size:12px;max-height:65px;overflow:auto"></div>';
+ document.body.appendChild(dock);
+ const jrVideo=document.getElementById("jrVideo");
+ const jrStatus=document.getElementById("jrStatus");
+ let jrCurrent=null;
+ let jrCurrentStreamUrl="";
+
+ const jrLibrary=document.createElement("section");
+ jrLibrary.id="jrLibrary";jrLibrary.hidden=true;
+ jrLibrary.style.cssText="position:fixed;z-index:100;inset:55px 8px 75px;background:#101827;color:white;padding:12px;border:1px solid #44516b;border-radius:14px;overflow:auto";
+ jrLibrary.innerHTML='<div style="display:flex;gap:8px;align-items:center;margin-bottom:12px"><b style="flex:1">তোমার Library</b><button id="jrLibClose">বন্ধ</button></div><div style="display:flex;gap:8px;margin-bottom:12px"><button id="jrHistTab">History</button><button id="jrLaterTab">Watch Later</button></div><div id="jrLibraryList"></div>';
+ document.body.appendChild(jrLibrary);
+ let jrLibraryMode="history";
+ function jrReadList(key){
+  try{const x=JSON.parse(localStorage.getItem(key)||"[]");return Array.isArray(x)?x:[];}
+  catch(e){return [];}
+ }
+ function jrVideoKey(v){
+  return getVideoId(v.url)||String(v.title||"")+"::"+String(v.uploaderName||v.uploader||"");
+ }
+ function jrSaveVideo(key,v,limit){
+  try{
+   const item={url:v.url,title:v.title||"ভিডিও",thumbnail:v.thumbnail||"",uploaderName:v.uploaderName||v.uploader||"চ্যানেল",views:v.views||0,duration:v.duration||0};
+   const k=jrVideoKey(item);
+   const list=jrReadList(key).filter(x=>jrVideoKey(x)!==k);
+   list.unshift(item);
+   localStorage.setItem(key,JSON.stringify(list.slice(0,limit)));
+  }catch(e){setStatus("ফোনে ভিডিও সেভ করা যায়নি।",false);}
+ }
+ function jrRenderLibrary(){
+  const box=document.getElementById("jrLibraryList");
+  box.replaceChildren();
+  const key=jrLibraryMode==="history"?"jrplay_history":"jrplay_watch_later";
+  const list=jrReadList(key);
+  if(!list.length){
+   const empty=document.createElement("p");
+   empty.textContent=jrLibraryMode==="history"?"এখনো কোনো ভিডিও চালানো হয়নি।":"Watch Later-এ কোনো ভিডিও সেভ করা নেই।";
+   box.appendChild(empty);return;
+  }
+  list.forEach(v=>{
+   const row=document.createElement("div");
+   row.style.cssText="padding:10px 0;border-bottom:1px solid #334155";
+   const title=document.createElement("button");
+   title.textContent=v.title||"ভিডিও";
+   title.style.cssText="display:block;width:100%;text-align:left;margin-bottom:5px";
+   title.onclick=()=>{jrLibrary.hidden=true;playVideo(v);};
+   const channel=document.createElement("div");
+   channel.textContent=v.uploaderName||"চ্যানেল";
+   channel.style.cssText="font-size:12px;color:#b8c5d9;margin-bottom:6px";
+   const remove=document.createElement("button");
+   remove.textContent="তালিকা থেকে সরাও";
+   remove.onclick=()=>{
+    localStorage.setItem(key,JSON.stringify(jrReadList(key).filter(x=>jrVideoKey(x)!==jrVideoKey(v))));
+    jrRenderLibrary();
+   };
+   row.append(title,channel,remove);box.appendChild(row);
+  });
+ }
+ function jrShowLibrary(mode){
+  jrLibraryMode=mode;jrLibrary.hidden=false;jrRenderLibrary();
+ }
+ document.getElementById("jrHistTab").onclick=()=>jrShowLibrary("history");
+ document.getElementById("jrLaterTab").onclick=()=>jrShowLibrary("later");
+ document.getElementById("jrLibClose").onclick=()=>jrLibrary.hidden=true;
+
+ const jrSearchPage=document.createElement("section");
+ jrSearchPage.id="jrSearchPage";jrSearchPage.hidden=true;
+ jrSearchPage.style.cssText="position:fixed;z-index:80;inset:0;background:#0f0f0f;color:white;padding:14px;overflow:auto";
+ jrSearchPage.innerHTML='<div style="display:flex;gap:9px;align-items:center;margin-bottom:14px"><button id="jrSearchBack" style="padding:10px">← ফিরে যাও</button><b>ভিডিও খুঁজুন</b></div><form id="jrSearchForm" style="display:flex;gap:7px;margin-bottom:12px"><input id="jrSearchInput" placeholder="ভিডিওর নাম লিখুন..." style="flex:1;min-width:0;padding:12px;border-radius:20px;background:#222;color:white;border:1px solid #555"><button style="padding:10px;border-radius:18px">খুঁজুন</button></form><div id="jrSearchResults"></div>';
+ document.body.appendChild(jrSearchPage);
+ const jrSearchResults=document.getElementById("jrSearchResults");
+ const jrSearchInput=document.getElementById("jrSearchInput");
+ function jrCloseSearchPage(){
+  if(jrSearchPage.hidden)return;
+  jrSearchPage.hidden=true;
+  const main=document.querySelector("main");
+  const signature=main.querySelector(".signature");
+  main.insertBefore(status,signature);
+  main.insertBefore(grid,signature);
+ }
+ function jrOpenSearchPage(){
+  jrSearchPage.hidden=false;
+  jrSearchResults.append(status,grid);
+  jrSearchInput.value=input.value||"";
+  jrSearchInput.focus();
+ }
+ document.getElementById("jrSearchBack").onclick=jrCloseSearchPage;
+ document.getElementById("jrSearchForm").addEventListener("submit",function(e){
+  e.preventDefault();
+  const q=jrSearchInput.value.trim();
+  input.value=q;
+  search(q);
+ });
+ function playVideo(v){
+  const id=getVideoId(v.url);
+  if(!id){setStatus("ভিডিও ID পাওয়া যায়নি।",false);return;}
+  jrCurrent=v;jrCurrentStreamUrl="";dock.hidden=false;jrSaveVideo("jrplay_history",v,100);
+  document.getElementById("jrTitle").textContent=v.title||"ভিডিও";
+  document.getElementById("jrDesc").textContent="";
+  jrStatus.textContent="ভিডিও stream আনা হচ্ছে...";
+  jrVideo.pause();jrVideo.removeAttribute("src");jrVideo.load();
+  if(window.Android&&Android.getVideoDetails)Android.getVideoDetails(id);
+  else jrStatus.textContent="Android সংযোগ পাওয়া যায়নি।";
+ }
+ window.onDownloadResult=function(raw){
+  let d;
+  try{d=typeof raw==="string"?JSON.parse(raw):raw;}
+  catch(e){jrStatus.textContent="ডাউনলোডের ফলাফল পড়া যায়নি।";return;}
+  if(d.error){jrStatus.textContent="ডাউনলোড ব্যর্থ: "+d.error;return;}
+  jrStatus.textContent=d.message||"ডাউনলোড শুরু হয়েছে।";
+ };
+ window.onVideoDetailsResult=function(raw){
+  let d;
+  try{d=typeof raw==="string"?JSON.parse(raw):raw;}
+  catch(e){jrStatus.textContent="ভিডিওর তথ্য পড়া যায়নি।";return;}
+  if(!jrCurrent||dock.hidden)return;
+  if(d.error){jrStatus.textContent="Stream পাওয়া যায়নি: "+d.error;return;}
+  document.getElementById("jrDesc").textContent=d.description||"";
+  const streams=(d.videoStreams||[]).filter(x=>x.url&&!x.videoOnly);
+  if(!streams.length){jrStatus.textContent="চালানোর উপযোগী stream পাওয়া যায়নি।";return;}
+  streams.sort((a,b)=>(parseInt(b.quality)||0)-(parseInt(a.quality)||0));
+  jrCurrentStreamUrl=streams[0].url;
+  jrVideo.src=jrCurrentStreamUrl;jrVideo.load();
+  jrStatus.textContent="ভিডিও প্রস্তুত হচ্ছে...";
+  jrVideo.play().catch(()=>jrStatus.textContent="ভিডিও চালাতে Play চাপো।");
+ };
+ document.getElementById("jrBackground").onclick=function(){
+  if(!jrCurrentStreamUrl){jrStatus.textContent="আগে ভিডিও চালু হতে দাও।";return;}
+  if(window.Android&&typeof Android.playBackgroundAudio==="function"){
+   jrVideo.pause();
+   Android.playBackgroundAudio(jrCurrentStreamUrl,(jrCurrent&&jrCurrent.title)||"JR Play");
+   jrStatus.textContent="ব্যাকগ্রাউন্ড অডিও চালুর অনুরোধ পাঠানো হয়েছে।";
+  }else{jrStatus.textContent="Android Background Audio সংযোগ পাওয়া যায়নি।";}
+ };
+ document.getElementById("jrDownload").onclick=function(){
+  if(!jrCurrentStreamUrl){jrStatus.textContent="আগে ভিডিওর stream প্রস্তুত হতে দাও।";return;}
+  if(window.Android&&typeof Android.downloadVideo==="function"){
+   jrStatus.textContent="ডাউনলোড শুরু হচ্ছে...";
+   Android.downloadVideo(jrCurrentStreamUrl,(jrCurrent&&jrCurrent.title)||"JR_Play_Video");
+  }else{jrStatus.textContent="Android Download সংযোগ পাওয়া যায়নি।";}
+ };
+ document.getElementById("jrMini").onclick=function(){
+  const mini=jrVideo.style.display!=="none";
+  jrVideo.style.display=mini?"none":"block";
+  document.getElementById("jrDesc").style.display=mini?"none":"block";
+  dock.style.left=mini?"auto":"7px";dock.style.width=mini?"190px":"auto";
+  this.textContent=mini?"বড়":"ছোট";
+ };
+ document.getElementById("jrClose").onclick=function(){
+  jrVideo.pause();jrVideo.removeAttribute("src");jrVideo.load();
+  dock.hidden=true;jrCurrent=null;jrCurrentStreamUrl="";
+ };
  function loadTrending(){
-  currentMode="trending";input.value="";
+  jrCloseSearchPage();currentMode="trending";input.value="";
   requestNumber++;grid.replaceChildren();setStatus("বাংলাদেশের ট্রেন্ডিং ভিডিও লোড হচ্ছে...",true);
   if(window.Android&&typeof Android.loadTrending==="function")Android.loadTrending();
   else setStatus("Android সংযোগ পাওয়া যায়নি। অ্যাপের ভিতর থেকে খুলে দেখো।",false);
@@ -214,15 +371,34 @@ footer{position:fixed;bottom:0;left:0;right:0;background:#151515f5;border-top:1p
   });
  });
  document.getElementById("homeBtn").addEventListener("click",loadTrending);
- document.getElementById("searchBtn").addEventListener("click",()=>{input.focus();});
- document.getElementById("libraryBtn").addEventListener("click",()=>setStatus("Watch Later, History ও Playlists পরের ধাপে যুক্ত করা হবে।",false));
+ document.getElementById("searchBtn").addEventListener("click",jrOpenSearchPage);
+ document.getElementById("libraryBtn").addEventListener("click",()=>jrShowLibrary("history"));
  window.openSettings=function(){if(window.Android&&typeof Android.openSettings==="function")Android.openSettings();};
+
+ let lastHomeBack=0;
  window.handleAndroidBack=function(){
   if(document.activeElement===input){input.blur();return;}
-  if(currentMode==="search"){loadTrending();document.querySelectorAll(".chip").forEach(c=>c.classList.remove("active"));document.querySelector('.chip[data-query=""]').classList.add("active");return;}
-  if(window.history.length>1){window.history.back();return;}
-  setStatus("তুমি Home পেজে আছো। বের হতে চাইলে আবার Back চাপো।",false);
- };
+  const searchPage=document.getElementById("jrSearchPage");
+  if(searchPage&&!searchPage.hidden){
+   if(typeof jrCloseSearchPage==="function")jrCloseSearchPage();
+   else searchPage.hidden=true;
+   return;
+  }
+  if(currentMode==="search"){
+   loadTrending();
+   document.querySelectorAll(".chip").forEach(c=>c.classList.remove("active"));
+   const all=document.querySelector('.chip[data-query=""]');
+   if(all)all.classList.add("active");
+   return;
+  }
+  const now=Date.now();
+  if(now-lastHomeBack<2000){
+   if(window.Android&&typeof Android.exitApp==="function")Android.exitApp();
+   return;
+  }
+  lastHomeBack=now;
+  setStatus("অ্যাপ বন্ধ করতে ২ সেকেন্ডের মধ্যে আবার Back চাপো।",false);
+ };;
  window.addEventListener("load",loadTrending);
 })();
 </script>
