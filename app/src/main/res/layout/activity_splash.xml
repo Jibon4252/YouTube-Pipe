@@ -12,7 +12,6 @@
         android:gravity="center"
         android:orientation="vertical">
 
-        <!-- YouTube Pipe Main Logo Header -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -22,15 +21,11 @@
             android:textStyle="bold" />
 
         <TextView
-            android:id="@+id/txtCreatedBy"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:text="Created by Jibon Roy"
+            android:layout_marginTop="10dp"
+            android:text="Created for Jibon"
             android:textColor="#FFFFFF"
-            android:textSize="18sp"
-            android:letterSpacing="0.08" />
-
+            android:textSize="18sp" />
     </LinearLayout>
-
 </RelativeLayout>

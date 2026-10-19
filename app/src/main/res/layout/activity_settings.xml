@@ -14,17 +14,10 @@
         android:textSize="24sp"
         android:textStyle="bold" />
 
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="1dp"
-        android:layout_marginTop="16dp"
-        android:layout_marginBottom="24dp"
-        android:background="#272727" />
-
-    <!-- App Info Card -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_marginTop="20dp"
         android:background="#1F1F1F"
         android:orientation="vertical"
         android:padding="16dp">
@@ -41,19 +34,17 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="6dp"
-            android:text="Build by Jibon Roy"
+            android:text="Create by Jibon Roy"
             android:textColor="#FF0000"
-            android:textSize="14sp"
+            android:textSize="15sp"
             android:textStyle="bold" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:text="Version 1.0.0 • Ad-Free Piped Streaming"
+            android:text="Version 1.0.0 • High Performance Streaming Client"
             android:textColor="#AAAAAA"
             android:textSize="12sp" />
-
     </LinearLayout>
-
 </LinearLayout>
