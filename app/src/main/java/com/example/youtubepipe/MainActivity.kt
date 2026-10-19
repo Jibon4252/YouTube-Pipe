@@ -1,6 +1,8 @@
 package com.example.youtubepipe
 
+import android.content.Intent
 import android.os.Bundle
+import android.widget.ImageView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -24,6 +26,11 @@ class MainActivity : AppCompatActivity() {
 
         swipeRefresh = findViewById(R.id.swipeRefresh)
         recyclerView = findViewById(R.id.recyclerView)
+        val btnSettings = findViewById<ImageView>(R.id.btnSettings)
+
+        btnSettings.setOnClickListener {
+            startActivity(Intent(this, SettingsActivity::class.java))
+        }
 
         adapter = VideoAdapter(emptyList()) { video ->
             Toast.makeText(this, "Playing: ${video.title}", Toast.LENGTH_SHORT).show()
