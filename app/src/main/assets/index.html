@@ -337,9 +337,31 @@ document.getElementById("wpDescToggle").onclick=function(){
   else{d.classList.add("expanded");t.textContent="কম দেখুন";}
 };
 
-document.getElementById("wpDownload").onclick=()=>{
-  if(!wpCurrentVideo)return;
-  if(window.Android&&Android.downloadVideo) Android.downloadVideo(wpCurrentVideo.url,"JR_Video");
+document.getElementById("wpCopyLink").onclick=async()=>{
+  const status=document.getElementById("wpStatus");
+  const url=wpCurrentVideo&&wpCurrentVideo.url;
+  if(!url){
+    status.textContent="ভিডিওর লিংক পাওয়া যায়নি।";
+    return;
+  }
+  try{
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      await navigator.clipboard.writeText(url);
+    }else{
+      const field=document.createElement("textarea");
+      field.value=url;
+      field.style.position="fixed";
+      field.style.left="-9999px";
+      document.body.appendChild(field);
+      field.select();
+      const copied=document.execCommand("copy");
+      field.remove();
+      if(!copied)throw new Error("copy failed");
+    }
+    status.textContent="ভিডিওর লিংক কপি হয়েছে। অন্য অ্যাপে পেস্ট করো।";
+  }catch(e){
+    status.textContent="অটো কপি হয়নি। ভিডিও লিংক: "+url;
+  }
 };
 
 window.onVideoDetailsResult=function(raw){
@@ -379,7 +401,14 @@ window.onVideoDetailsResult=function(raw){
   
   const streams=(d.videoStreams||[]).filter(x=>x.url&&!x.videoOnly);
   if(!streams.length){status.textContent="চালানোর মতো stream নেই।";return;}
-  streams.sort((a,b)=>(parseInt(b.quality)||0)-(parseInt(a.quality)||0));
+  streams.sort((a,b)=>{
+    const score=x=>{
+      const mp4=(x.format==="MPEG_4"||x.mimeType==="video/mp4")?1000:0;
+      const blocked=x.quality==="LBRY"?-500:0;
+      return mp4+blocked+(parseInt(x.quality)||0);
+    };
+    return score(b)-score(a);
+  });
   wpVideo.src=streams[0].url;
   wpVideo.load();
   status.textContent="প্রস্তুত হচ্ছে...";
@@ -542,7 +571,7 @@ window._oldDetails=function(raw){
     <div class="wp-actions" id="wpActions">
       <button class="wp-btn" id="wpLike"></button>
       <button class="wp-btn">↗ Share</button>
-      <button class="wp-btn" id="wpDownload">⬇ Download</button>
+      <button class="wp-btn" id="wpCopyLink">🔗 লিংক কপি</button>
     </div>
     <div class="wp-channel">
       <div class="wp-avatar" id="wpAvatar"></div>
