@@ -193,17 +193,6 @@ footer{position:fixed;bottom:0;left:0;right:0;background:#151515f5;border-top:1p
  window.onSearchResult=function(raw){handleResponse(raw,"search",requestNumber);};
 
 
- const dock=document.createElement("section");
- dock.id="jrPlayer";
- dock.hidden=true;
- dock.style.cssText="position:fixed;z-index:99;left:7px;right:7px;bottom:68px;background:#172033;color:white;padding:10px;border-radius:12px;border:1px solid #44516b";
- dock.innerHTML='<div style="display:flex;gap:8px;align-items:center"><b id="jrTitle" style="flex:1"></b><button id="jrMini">ছোট</button><button id="jrClose">বন্ধ</button></div><button id="jrBackground" style="margin-top:8px;width:100%">ব্যাকগ্রাউন্ডে চালাও</button><button id="jrDownload" style="margin-top:6px;width:100%">ভিডিও ডাউনলোড</button><video id="jrVideo" controls playsinline style="width:100%;max-height:35vh;background:#000;margin-top:8px"></video><div id="jrStatus" style="font-size:12px;margin-top:5px"></div><div id="jrDesc" style="font-size:12px;max-height:65px;overflow:auto"></div>';
- document.body.appendChild(dock);
- const jrVideo=document.getElementById("jrVideo");
- const jrStatus=document.getElementById("jrStatus");
- let jrCurrent=null;
- let jrCurrentStreamUrl="";
-
  const jrLibrary=document.createElement("section");
  jrLibrary.id="jrLibrary";jrLibrary.hidden=true;
  jrLibrary.style.cssText="position:fixed;z-index:100;inset:55px 8px 75px;background:#101827;color:white;padding:12px;border:1px solid #44516b;border-radius:14px;overflow:auto";
@@ -309,7 +298,95 @@ footer{position:fixed;bottom:0;left:0;right:0;background:#151515f5;border-top:1p
   if(d.error){jrStatus.textContent="ডাউনলোড ব্যর্থ: "+d.error;return;}
   jrStatus.textContent=d.message||"ডাউনলোড শুরু হয়েছে।";
  };
- window.onVideoDetailsResult=function(raw){
+ 
+let wpCurrentVideo=null;
+let wpHls=null;
+
+function playVideo(v){
+  const id=getVideoId(v.url);
+  if(!id){setStatus("ভিডিও ID পাওয়া যায়নি।",false);return;}
+  wpCurrentVideo=v; jrSaveVideo("jrplay_history",v,100);
+  
+  document.getElementById("watchPage").classList.add("active");
+  document.getElementById("wpTitle").textContent=v.title||"ভিডিও";
+  document.getElementById("wpUploader").textContent=v.uploaderName||v.uploader||"চ্যানেল";
+  document.getElementById("wpAvatar").textContent=String(v.uploaderName||v.uploader||"Y").charAt(0).toUpperCase();
+  document.getElementById("wpViewsDate").textContent=formatViews(v.views);
+  document.getElementById("wpDescText").textContent="ভিডিওর বর্ণনা লোড হচ্ছে...";
+  document.getElementById("wpStatus").textContent="Stream আনা হচ্ছে...";
+  
+  const wpVideo=document.getElementById("wpVideo");
+  if(wpHls){try{wpHls.destroy()}catch(e){}wpHls=null;}
+  wpVideo.pause(); wpVideo.removeAttribute("src"); wpVideo.load();
+  
+  if(window.Android&&Android.getVideoDetails) Android.getVideoDetails(id);
+  else document.getElementById("wpStatus").textContent="Android সংযোগ নেই।";
+}
+
+document.getElementById("wpBack").onclick=()=>{
+  document.getElementById("watchPage").classList.remove("active");
+  const wpVideo=document.getElementById("wpVideo");
+  if(wpHls){try{wpHls.destroy()}catch(e){}wpHls=null;}
+  wpVideo.pause();
+};
+
+document.getElementById("wpDescToggle").onclick=function(){
+  const d=document.getElementById("wpDesc");
+  const t=document.getElementById("wpDescToggle");
+  if(d.classList.contains("expanded")){d.classList.remove("expanded");t.textContent="...আরও দেখুন";}
+  else{d.classList.add("expanded");t.textContent="কম দেখুন";}
+};
+
+document.getElementById("wpDownload").onclick=()=>{
+  if(!wpCurrentVideo)return;
+  if(window.Android&&Android.downloadVideo) Android.downloadVideo(wpCurrentVideo.url,"JR_Video");
+};
+
+window.onVideoDetailsResult=function(raw){
+  let d;
+  try{d=typeof raw==="string"?JSON.parse(raw):raw;}
+  catch(e){document.getElementById("wpStatus").textContent="তথ্য পড়া যায়নি।";return;}
+  if(!wpCurrentVideo)return;
+  if(d.error){document.getElementById("wpStatus").textContent="Stream error: "+d.error;return;}
+  
+  document.getElementById("wpTitle").textContent=d.title||wpCurrentVideo.title;
+  document.getElementById("wpUploader").textContent=d.uploader||wpCurrentVideo.uploaderName;
+  document.getElementById("wpViewsDate").textContent=(d.views?formatViews(d.views):"") + (d.uploadDate?" • "+d.uploadDate:"");
+  document.getElementById("wpLike").textContent="👍 " + (d.likes>=0?d.likes:"0");
+  
+  let desc = d.description || "কোনো বর্ণনা নেই।";
+  if(d.likes>=0) desc += "\n\n👍 " + d.likes + " Likes";
+  document.getElementById("wpDescText").textContent=desc;
+  
+  const wpVideo=document.getElementById("wpVideo");
+  const status=document.getElementById("wpStatus");
+  
+  if(d.hls && window.Hls && Hls.isSupported()){
+    if(wpHls){try{wpHls.destroy()}catch(e){}}
+    wpHls=new Hls({enableWorker:true});
+    wpHls.loadSource(d.hls);
+    wpHls.attachMedia(wpVideo);
+    wpHls.on(Hls.Events.MANIFEST_PARSED,function(){
+      status.textContent="";
+      wpVideo.play().catch(()=>status.textContent="Play চাপো।");
+    });
+    wpHls.on(Hls.Events.ERROR,function(e,data){
+      if(data&&data.fatal) status.textContent="HLS এরর: "+data.details;
+    });
+    status.textContent="HLS লোড হচ্ছে...";
+    return;
+  }
+  
+  const streams=(d.videoStreams||[]).filter(x=>x.url&&!x.videoOnly);
+  if(!streams.length){status.textContent="চালানোর মতো stream নেই।";return;}
+  streams.sort((a,b)=>(parseInt(b.quality)||0)-(parseInt(a.quality)||0));
+  wpVideo.src=streams[0].url;
+  wpVideo.load();
+  status.textContent="প্রস্তুত হচ্ছে...";
+  wpVideo.play().catch(()=>status.textContent="Play চাপো।");
+};
+
+window._oldDetails=function(raw){
   let d;
   try{d=typeof raw==="string"?JSON.parse(raw):raw;}
   catch(e){jrStatus.textContent="ভিডিওর তথ্য পড়া যায়নি।";return;}
@@ -402,6 +479,10 @@ footer{position:fixed;bottom:0;left:0;right:0;background:#151515f5;border-top:1p
  window.handleAndroidBack=function(){
   if(document.activeElement===input){input.blur();return;}
   const searchPage=document.getElementById("jrSearchPage");
+  if(document.getElementById("watchPage").classList.contains("active")){
+   document.getElementById("wpBack").click();
+   return;
+  }
   if(searchPage&&!searchPage.hidden){
    if(typeof jrCloseSearchPage==="function")jrCloseSearchPage();
    else searchPage.hidden=true;
@@ -425,5 +506,59 @@ footer{position:fixed;bottom:0;left:0;right:0;background:#151515f5;border-top:1p
  window.addEventListener("load",loadTrending);
 })();
 </script>
+
+<style>
+#watchPage{position:fixed;inset:0;background:#0f0f0f;z-index:200;overflow-y:auto;display:none;flex-direction:column;color:#fff}
+#watchPage.active{display:flex}
+.wp-header{display:flex;align-items:center;padding:10px;background:#0f0f0f;position:sticky;top:0;z-index:10}
+.wp-back{background:none;border:none;color:#fff;font-size:24px;padding:5px 15px;cursor:pointer}
+.wp-video{width:100%;max-height:40vh;background:#000;object-fit:contain}
+.wp-content{padding:12px}
+.wp-title{font-size:18px;font-weight:700;margin:0 0 8px;line-height:1.3}
+.wp-meta{display:flex;justify-content:space-between;align-items:center;color:#aaa;font-size:13px;margin-bottom:15px;flex-wrap:wrap;gap:10px}
+.wp-actions{display:flex;gap:8px;overflow-x:auto;padding-bottom:10px;scrollbar-width:none}
+.wp-btn{background:#272727;border:none;color:#fff;padding:8px 14px;border-radius:20px;font-size:13px;display:flex;align-items:center;gap:6px}
+.wp-channel{display:flex;align-items:center;gap:12px;margin:15px 0;border-top:1px solid #333;border-bottom:1px solid #333;padding:15px 0}
+.wp-avatar{width:40px;height:40px;border-radius:50%;background:#ff0000;display:flex;align-items:center;justify-content:center;font-weight:bold}
+.wp-chan-info{flex:1}
+.wp-chan-name{font-size:15px;font-weight:700}
+.wp-sub{font-size:12px;color:#aaa}
+.wp-sub-btn{background:#fff;color:#000;border:none;padding:8px 16px;border-radius:20px;font-weight:700}
+.wp-desc{background:#222;padding:12px;border-radius:10px;font-size:14px;line-height:1.5;margin-bottom:20px;white-space:pre-wrap;max-height:100px;overflow:hidden;transition:max-height 0.3s}
+.wp-desc.expanded{max-height:none}
+.wp-desc-toggle{color:#3ea6ff;font-weight:bold;margin-top:10px;display:inline-block;cursor:pointer;font-size:14px}
+</style>
+<section id="watchPage">
+  <div class="wp-header">
+    <button class="wp-back" id="wpBack">←</button>
+    <b style="flex:1;font-size:16px">JR Play Watch</b>
+  </div>
+  <video id="wpVideo" class="wp-video" controls playsinline></video>
+  <div class="wp-content">
+    <h1 class="wp-title" id="wpTitle"></h1>
+    <div class="wp-meta">
+      <span id="wpViewsDate"></span>
+    </div>
+    <div class="wp-actions" id="wpActions">
+      <button class="wp-btn" id="wpLike"></button>
+      <button class="wp-btn">↗ Share</button>
+      <button class="wp-btn" id="wpDownload">⬇ Download</button>
+    </div>
+    <div class="wp-channel">
+      <div class="wp-avatar" id="wpAvatar"></div>
+      <div class="wp-chan-info">
+        <div class="wp-chan-name" id="wpUploader"></div>
+        <div class="wp-sub">@{uploader}</div>
+      </div>
+      <button class="wp-sub-btn">Subscribe</button>
+    </div>
+    <div class="wp-desc" id="wpDesc">
+      <div id="wpDescText"></div>
+      <div class="wp-desc-toggle" id="wpDescToggle">...আরও দেখুন</div>
+    </div>
+    <div id="wpStatus" style="color:#aaa;font-size:13px;margin-bottom:10px"></div>
+  </div>
+</section>
+
 </body>
 </html>
