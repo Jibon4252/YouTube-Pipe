@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="bn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<meta name="theme-color" content="#0f0f0f">
+<title>JR Play</title>
+<style>
+:root{color-scheme:dark;--bg:#0f0f0f;--panel:#212121;--text:#f1f1f1;--muted:#aaa;--line:#303030;--accent:#ff424f}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:Roboto,"Arial",sans-serif}
+header{position:sticky;top:0;z-index:5;background:#0f0f0ff2;backdrop-filter:blur(14px);border-bottom:1px solid #272727;padding:12px 16px}
+.top{display:flex;align-items:center;gap:12px}
+.brand{display:flex;align-items:center;gap:8px;min-width:max-content;font-size:19px;font-weight:800;letter-spacing:-.6px}
+.logo{width:35px;height:25px;display:block}
+.search{display:flex;flex:1;min-width:0;max-width:650px;margin:auto}
+.search input{width:100%;min-width:0;background:#121212;border:1px solid #393939;border-radius:22px 0 0 22px;color:white;padding:11px 15px;font-size:15px;outline:none}
+.search input:focus{border-color:#4776ad}
+.search button,.settings{border:1px solid #393939;background:#292929;color:white;padding:0 17px;cursor:pointer}
+.search button{border-radius:0 22px 22px 0}
+.settings{border-radius:50%;width:40px;height:40px;padding:0;font-size:19px}
+.chips{display:flex;gap:9px;overflow:auto;padding:13px 16px;scrollbar-width:none;position:sticky;top:66px;background:#0f0f0ff5;z-index:4}
+.chips::-webkit-scrollbar{display:none}
+.chip{white-space:nowrap;border:0;border-radius:8px;background:#272727;color:white;padding:9px 13px;font-size:13px;cursor:pointer}
+.chip.active{background:#f1f1f1;color:#151515;font-weight:700}
+main{padding:8px 16px 90px}
+.status{display:flex;justify-content:center;align-items:center;gap:10px;text-align:center;padding:24px 10px;color:var(--muted);font-size:14px;min-height:55px}
+.spinner{width:19px;height:19px;border:2px solid #444;border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,280px),1fr));gap:24px 16px}
+.card{min-width:0;cursor:pointer}
+.thumb{width:100%;aspect-ratio:16/9;object-fit:cover;background:#202020;border-radius:12px;display:block}
+.details{display:flex;gap:11px;padding-top:11px}
+.avatar{width:37px;height:37px;border-radius:50%;background:linear-gradient(145deg,#ff424f,#6338bd);display:flex;align-items:center;justify-content:center;font-weight:800;flex-shrink:0}
+.info{min-width:0;flex:1}
+.title{font-size:15px;font-weight:600;line-height:1.4;margin:0 0 7px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.meta{font-size:12px;line-height:1.7;color:var(--muted);overflow-wrap:anywhere}
+.card:active{opacity:.8}
+footer{position:fixed;bottom:0;left:0;right:0;background:#151515f5;border-top:1px solid #303030;display:flex;justify-content:space-around;padding:9px 4px max(9px,env(safe-area-inset-bottom));z-index:6}
+.nav{border:0;background:none;color:#ddd;font-size:11px;display:flex;align-items:center;gap:5px;flex-direction:column;min-width:54px}
+.nav span:first-child{font-size:20px}
+.signature{text-align:center;color:#777;font-size:11px;padding:18px 0 6px}
+.empty{padding:28px 12px;text-align:center;color:var(--muted);line-height:1.7}
+@media(max-width:520px){header{padding:10px 11px}.brand{font-size:16px;gap:5px}.logo{width:30px}.search input{padding:10px;font-size:14px}.search button{padding:0 12px}.settings{width:35px;height:35px}.chips{top:58px;padding:11px}.grid{grid-template-columns:1fr;gap:23px}main{padding:5px 12px 85px}.thumb{border-radius:10px}.title{font-size:15px}}
+</style>
+</head>
+<body>
+<header>
+ <div class="top">
+  <div class="brand">
+   <svg class="logo" viewBox="0 0 42 30" role="img" aria-label="JR Play logo">
+    <defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ff5964"/><stop offset="1" stop-color="#df1634"/></linearGradient></defs>
+    <rect x="1" y="2" width="40" height="26" rx="8" fill="url(#lg)"/>
+    <path d="M18 8.5 29 15 18 21.5Z" fill="white"/>
+    <path d="M7 5.5h4M7 9h2" stroke="#fff" stroke-opacity=".65" stroke-width="1.5" stroke-linecap="round"/>
+   </svg>
+   <span>JR Play</span>
+  </div>
+  <form class="search" id="searchForm">
+   <input id="searchInput" type="search" placeholder="ভিডিও খুঁজুন..." aria-label="ভিডিও খুঁজুন" autocomplete="off">
+   <button type="submit" aria-label="Search">⌕</button>
+  </form>
+  <button class="settings" onclick="openSettings()" aria-label="Settings">⚙</button>
+ </div>
+</header>
+<nav class="chips" aria-label="ভিডিও বিভাগ">
+ <button class="chip active" data-query="">সব</button>
+ <button class="chip" data-query="music">Music</button>
+ <button class="chip" data-query="gaming">Gaming</button>
+ <button class="chip" data-query="live streams">Live</button>
+ <button class="chip" data-query="podcasts">Podcasts</button>
+ <button class="chip" data-query="programming">Programming</button>
+</nav>
+<main>
+ <div id="feedStatus" class="status"><span class="spinner"></span><span>ভিডিও লোড হচ্ছে...</span></div>
+ <section id="videoGrid" class="grid" aria-label="ভিডিও তালিকা"></section>
+ <div class="signature">Created with care by <strong>Jibon Roy</strong> · JR Play</div>
+</main>
+<footer>
+ <button class="nav" id="homeBtn"><span>⌂</span><span>Home</span></button>
+ <button class="nav" id="searchBtn"><span>⌕</span><span>Search</span></button>
+ <button class="nav" id="libraryBtn"><span>▤</span><span>Library</span></button>
+</footer>
+<script>
+(function(){
+ "use strict";
+ const grid=document.getElementById("videoGrid");
+ const status=document.getElementById("feedStatus");
+ const input=document.getElementById("searchInput");
+ const form=document.getElementById("searchForm");
+ let requestNumber=0;
+ let currentMode="trending";
+
+ function setStatus(message,loading){
+  status.replaceChildren();
+  if(loading){const spinner=document.createElement("span");spinner.className="spinner";status.appendChild(spinner);}
+  const text=document.createElement("span");text.textContent=message;status.appendChild(text);
+  status.style.display="flex";
+ }
+ function formatViews(value){
+  const n=Number(value)||0;
+  if(n>=1e9)return (n/1e9).toFixed(1)+"B views";
+  if(n>=1e6)return (n/1e6).toFixed(1)+"M views";
+  if(n>=1e3)return (n/1e3).toFixed(1)+"K views";
+  return n+" views";
+ }
+ function formatDuration(value){
+  let n=Number(value)||0;
+  if(n<=0)return "";
+  const h=Math.floor(n/3600),m=Math.floor(n%3600/60),s=n%60;
+  return h?`${h}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`:`${m}:${String(s).padStart(2,"0")}`;
+ }
+ function getVideoId(url){
+  const value=String(url||"");
+  try{
+   const parsed=new URL(value,"https://pipedapi.ducks.party");
+   return parsed.searchParams.get("v")||parsed.pathname.match(/\/watch\/([^/]+)/)?.[1]||"";
+  }catch(_){return "";}
+ }
+ function showVideos(data,mode,number){
+  if(number!==requestNumber)return;
+  let videos=[];
+  if(Array.isArray(data))videos=data;
+  else if(data&&Array.isArray(data.items))videos=data.items;
+  else if(data&&Array.isArray(data.relatedStreams))videos=data.relatedStreams;
+  grid.replaceChildren();
+  if(!videos.length){
+   setStatus(data&&data.error?data.error:"কোনো ভিডিও পাওয়া যায়নি। অন্য শব্দ দিয়ে খুঁজে দেখো।",false);
+   return;
+  }
+  status.style.display="none";
+  const fragment=document.createDocumentFragment();
+  videos.forEach(video=>{
+   if(!video||!video.title||!video.thumbnail)return;
+   const card=document.createElement("article");card.className="card";card.tabIndex=0;
+   const img=document.createElement("img");img.className="thumb";img.loading="lazy";img.alt=video.title;img.src=video.thumbnail;
+   img.onerror=function(){this.style.visibility="hidden";};
+   const details=document.createElement("div");details.className="details";
+   const avatar=document.createElement("div");avatar.className="avatar";avatar.textContent=String(video.uploaderName||video.uploader||"Y").trim().charAt(0).toUpperCase()||"Y";
+   const info=document.createElement("div");info.className="info";
+   const title=document.createElement("h2");title.className="title";title.textContent=video.title;
+   const channel=document.createElement("div");channel.className="meta";channel.textContent=video.uploaderName||video.uploader||"চ্যানেল";
+   const meta=document.createElement("div");meta.className="meta";
+   const views=formatViews(video.views);const duration=formatDuration(video.duration);
+   meta.textContent=views+(duration?" · "+duration:"");
+   info.append(title,channel,meta);details.append(avatar,info);card.append(img,details);
+   const selectVideo=()=>{setStatus("ভিডিও প্লেয়ার পরের ধাপে যুক্ত করা হবে। এই ভিডিওর তথ্য বাস্তব API থেকে এসেছে।",false);};
+   card.addEventListener("click",selectVideo);
+   card.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();selectVideo();}});
+   fragment.appendChild(card);
+  });
+  grid.appendChild(fragment);
+  if(!grid.children.length)setStatus("এই ফলাফলে দেখানোর মতো ভিডিও নেই।",false);
+ }
+ function handleResponse(raw,mode,number){
+  if(number!==requestNumber)return;
+  try{
+   const data=typeof raw==="string"?JSON.parse(raw):raw;
+   showVideos(data,mode,number);
+  }catch(_){grid.replaceChildren();setStatus("ভিডিওর তথ্য পড়া যায়নি। আবার চেষ্টা করো।",false);}
+ }
+ window.onTrendingResult=function(raw){handleResponse(raw,"trending",requestNumber);};
+ window.onSearchResult=function(raw){handleResponse(raw,"search",requestNumber);};
+
+ function loadTrending(){
+  currentMode="trending";input.value="";
+  requestNumber++;grid.replaceChildren();setStatus("বাংলাদেশের ট্রেন্ডিং ভিডিও লোড হচ্ছে...",true);
+  if(window.Android&&typeof Android.loadTrending==="function")Android.loadTrending();
+  else setStatus("Android সংযোগ পাওয়া যায়নি। অ্যাপের ভিতর থেকে খুলে দেখো।",false);
+ }
+ function search(query){
+  const q=String(query||"").trim();
+  if(!q){loadTrending();return;}
+  currentMode="search";requestNumber++;grid.replaceChildren();setStatus("“"+q+"” খোঁজা হচ্ছে...",true);
+  if(window.Android&&typeof Android.searchVideos==="function")Android.searchVideos(q);
+  else setStatus("Android সংযোগ পাওয়া যায়নি। অ্যাপের ভিতর থেকে খুলে দেখো।",false);
+ }
+ form.addEventListener("submit",e=>{e.preventDefault();search(input.value);});
+ document.querySelectorAll(".chip").forEach(chip=>{
+  chip.addEventListener("click",()=>{
+   document.querySelectorAll(".chip").forEach(c=>c.classList.remove("active"));
+   chip.classList.add("active");
+   const q=chip.dataset.query||"";
+   if(q){input.value=q;search(q);}else loadTrending();
+  });
+ });
+ document.getElementById("homeBtn").addEventListener("click",loadTrending);
+ document.getElementById("searchBtn").addEventListener("click",()=>{input.focus();});
+ document.getElementById("libraryBtn").addEventListener("click",()=>setStatus("Watch Later, History ও Playlists পরের ধাপে যুক্ত করা হবে।",false));
+ window.openSettings=function(){if(window.Android&&typeof Android.openSettings==="function")Android.openSettings();};
+ window.handleAndroidBack=function(){
+  if(document.activeElement===input){input.blur();return;}
+  if(currentMode==="search"){loadTrending();document.querySelectorAll(".chip").forEach(c=>c.classList.remove("active"));document.querySelector('.chip[data-query=""]').classList.add("active");return;}
+  if(window.history.length>1){window.history.back();return;}
+  setStatus("তুমি Home পেজে আছো। বের হতে চাইলে আবার Back চাপো।",false);
+ };
+ window.addEventListener("load",loadTrending);
+})();
+</script>
+</body>
+</html>

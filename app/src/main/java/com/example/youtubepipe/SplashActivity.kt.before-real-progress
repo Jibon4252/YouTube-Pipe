@@ -1,0 +1,79 @@
+package com.example.youtubepipe
+
+import android.content.Intent
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.widget.LinearLayout
+import android.widget.TextView
+import androidx.appcompat.app.AppCompatActivity
+import java.net.HttpURLConnection
+import java.net.URL
+
+class SplashActivity : AppCompatActivity() {
+    private val handler = Handler(Looper.getMainLooper())
+    private var opened = false
+    private lateinit var status: TextView
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_splash)
+
+        val container = findViewById<LinearLayout>(R.id.splashContainer)
+        status = findViewById(R.id.splashStatus)
+        container.alpha = 0f
+        container.scaleX = 0.96f
+        container.scaleY = 0.96f
+        container.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(650).start()
+
+        status.text = "Connecting to video service..."
+        handler.postDelayed({
+            if (!opened) openHome("Service is taking longer. Opening app...")
+        }, 4000)
+
+        Thread {
+            val connected = checkService()
+            handler.post {
+                if (!opened && !isFinishing) {
+                    if (connected) {
+                        status.text = "Connection ready. Opening JR Play..."
+                        handler.postDelayed({ openHome("Opening JR Play...") }, 450)
+                    } else {
+                        openHome("Opening app...")
+                    }
+                }
+            }
+        }.start()
+    }
+
+    private fun checkService(): Boolean {
+        var connection: HttpURLConnection? = null
+        return try {
+            connection = (URL("https://pipedapi.ducks.party/trending?region=BD")
+                .openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 2500
+                readTimeout = 2500
+                setRequestProperty("Accept", "application/json")
+            }
+            connection.responseCode in 200..299
+        } catch (_: Exception) {
+            false
+        } finally {
+            connection?.disconnect()
+        }
+    }
+
+    private fun openHome(message: String) {
+        if (opened || isFinishing) return
+        opened = true
+        status.text = message
+        startActivity(Intent(this, MainActivity::class.java))
+        finish()
+    }
+
+    override fun onDestroy() {
+        handler.removeCallbacksAndMessages(null)
+        super.onDestroy()
+    }
+}

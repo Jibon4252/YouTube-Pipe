@@ -1,0 +1,95 @@
+package com.example.youtubepipe
+
+import android.content.Intent
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.widget.LinearLayout
+import android.widget.ProgressBar
+import android.widget.TextView
+import androidx.appcompat.app.AppCompatActivity
+import java.net.HttpURLConnection
+import java.net.URL
+
+class SplashActivity : AppCompatActivity() {
+    private val handler = Handler(Looper.getMainLooper())
+    private var opened = false
+    private lateinit var status: TextView
+    private lateinit var progress: ProgressBar
+    private lateinit var percentage: TextView
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_splash)
+
+        val container = findViewById<LinearLayout>(R.id.splashContainer)
+        status = findViewById(R.id.splashStatus)
+        progress = findViewById(R.id.splashProgress)
+        percentage = findViewById(R.id.splashPercentage)
+        setProgress(10)
+        container.alpha = 0f
+        container.scaleX = 0.96f
+        container.scaleY = 0.96f
+        container.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(650).start()
+
+        status.text = "Connecting to video service..."
+        setProgress(25)
+        handler.postDelayed({
+            if (!opened) openHome("Service is taking longer. Opening app...")
+        }, 4000)
+
+        Thread {
+            val connected = checkService()
+            handler.post {
+                if (!opened && !isFinishing) {
+                    setProgress(85)
+                    if (connected) {
+                        status.text = "Connection ready. Opening JR Play..."
+                        handler.postDelayed({ openHome("Opening JR Play...") }, 450)
+                    } else {
+                        openHome("Service unavailable. Opening app...")
+                    }
+                }
+            }
+        }.start()
+    }
+
+    private fun checkService(): Boolean {
+        var connection: HttpURLConnection? = null
+        return try {
+            connection = (URL("https://pipedapi.ducks.party/trending?region=BD")
+                .openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 2500
+                readTimeout = 2500
+                setRequestProperty("Accept", "application/json")
+            }
+            connection.responseCode in 200..299
+        } catch (_: Exception) {
+            false
+        } finally {
+            connection?.disconnect()
+        }
+    }
+
+    private fun setProgress(value: Int) {
+        progress.isIndeterminate = false
+        progress.max = 100
+        progress.progress = value.coerceIn(0, 100)
+        percentage.text = "${value.coerceIn(0, 100)}%"
+    }
+
+    private fun openHome(message: String) {
+        if (opened || isFinishing) return
+        opened = true
+        setProgress(100)
+        status.text = message
+        startActivity(Intent(this, MainActivity::class.java))
+        finish()
+    }
+
+    override fun onDestroy() {
+        handler.removeCallbacksAndMessages(null)
+        super.onDestroy()
+    }
+}

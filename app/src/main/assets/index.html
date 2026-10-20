@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
 <meta name="theme-color" content="#0f0f0f">
 <title>JR Play</title>
+<script src="hls.min.js"></script>
 <style>
 :root{color-scheme:dark;--bg:#0f0f0f;--panel:#212121;--text:#f1f1f1;--muted:#aaa;--line:#303030;--accent:#ff424f}
 *{box-sizing:border-box}
@@ -296,6 +297,7 @@ footer{position:fixed;bottom:0;left:0;right:0;background:#151515f5;border-top:1p
   document.getElementById("jrTitle").textContent=v.title||"ভিডিও";
   document.getElementById("jrDesc").textContent="";
   jrStatus.textContent="ভিডিও stream আনা হচ্ছে...";
+  if(window.jrHls){try{window.jrHls.destroy()}catch(_){}window.jrHls=null;}
   jrVideo.pause();jrVideo.removeAttribute("src");jrVideo.load();
   if(window.Android&&Android.getVideoDetails)Android.getVideoDetails(id);
   else jrStatus.textContent="Android সংযোগ পাওয়া যায়নি।";
@@ -313,7 +315,27 @@ footer{position:fixed;bottom:0;left:0;right:0;background:#151515f5;border-top:1p
   catch(e){jrStatus.textContent="ভিডিওর তথ্য পড়া যায়নি।";return;}
   if(!jrCurrent||dock.hidden)return;
   if(d.error){jrStatus.textContent="Stream পাওয়া যায়নি: "+d.error;return;}
-  document.getElementById("jrDesc").textContent=d.description||"";
+  const meta=[];
+  if(d.uploader)meta.push("👤 "+d.uploader);
+  if(d.views)meta.push("👁 "+formatViews(d.views));
+  if(d.uploadDate)meta.push("📅 "+d.uploadDate);
+  if(typeof d.likes==="number"&&d.likes>=0)meta.push("👍 "+d.likes);
+  document.getElementById("jrDesc").textContent=(d.description||"")+(meta.length?"\n\n"+meta.join("  "):"");
+  if(d.hls && window.Hls && Hls.isSupported()){
+   if(window.jrHls){try{window.jrHls.destroy()}catch(_){}}
+   window.jrHls=new Hls({enableWorker:true});
+   window.jrHls.loadSource(d.hls);
+   window.jrHls.attachMedia(jrVideo);
+   window.jrHls.on(Hls.Events.MANIFEST_PARSED,function(){
+    jrStatus.textContent="চালু হচ্ছে...";
+    jrVideo.play().catch(()=>jrStatus.textContent="Play চাপো।");
+   });
+   window.jrHls.on(Hls.Events.ERROR,function(e,data){
+    if(data&&data.fatal)jrStatus.textContent="HLS error: "+(data.details||"unknown");
+   });
+   jrStatus.textContent="HLS stream লোড হচ্ছে...";
+   return;
+  }
   const streams=(d.videoStreams||[]).filter(x=>x.url&&!x.videoOnly);
   if(!streams.length){jrStatus.textContent="চালানোর উপযোগী stream পাওয়া যায়নি।";return;}
   streams.sort((a,b)=>(parseInt(b.quality)||0)-(parseInt(a.quality)||0));
@@ -345,6 +367,7 @@ footer{position:fixed;bottom:0;left:0;right:0;background:#151515f5;border-top:1p
   this.textContent=mini?"বড়":"ছোট";
  };
  document.getElementById("jrClose").onclick=function(){
+  if(window.jrHls){try{window.jrHls.destroy()}catch(_){}window.jrHls=null;}
   jrVideo.pause();jrVideo.removeAttribute("src");jrVideo.load();
   dock.hidden=true;jrCurrent=null;jrCurrentStreamUrl="";
  };

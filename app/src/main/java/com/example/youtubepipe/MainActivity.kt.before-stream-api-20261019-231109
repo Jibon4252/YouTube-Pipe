@@ -1,0 +1,114 @@
+package com.example.youtubepipe
+
+import android.content.Intent
+import android.os.Bundle
+import android.webkit.JavascriptInterface
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import org.schabi.newpipe.extractor.NewPipe
+import androidx.appcompat.app.AppCompatActivity
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
+import java.net.URLEncoder
+
+class MainActivity : AppCompatActivity() {
+    private lateinit var webView: WebView
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        NewPipe.init(AndroidDownloader())
+        webView = WebView(this)
+        setContentView(webView)
+
+        webView.settings.javaScriptEnabled = true
+        webView.settings.domStorageEnabled = true
+        webView.webViewClient = WebViewClient()
+        webView.addJavascriptInterface(WebAppInterface(this), "Android")
+        webView.loadUrl("file:///android_asset/index.html")
+    }
+
+    override fun onBackPressed() {
+        if (::webView.isInitialized && webView.canGoBack()) {
+            webView.goBack()
+        } else {
+            // Stay on the Home screen instead of accidentally exiting the app.
+            webView.evaluateJavascript(
+                "if(window.handleAndroidBack){window.handleAndroidBack()}",
+                null
+            )
+        }
+    }
+
+    inner class WebAppInterface(private val activity: MainActivity) {
+        private val baseUrl = "https://pipedapi.ducks.party"
+
+        @JavascriptInterface
+        fun loadTrending() {
+            requestInBackground("/trending?region=BD", "onTrendingResult")
+        }
+
+        @JavascriptInterface
+        fun searchVideos(query: String) {
+            if (query.isBlank()) {
+                sendResult("onSearchResult", """{"items":[]}""")
+                return
+            }
+            val encoded = URLEncoder.encode(query.trim(), "UTF-8")
+            requestInBackground("/search?q=$encoded&filter=videos", "onSearchResult")
+        }
+
+        private fun requestInBackground(path: String, callback: String) {
+            Thread {
+                val result = fetchApi(path)
+                sendResult(callback, result)
+            }.start()
+        }
+
+        private fun fetchApi(path: String): String {
+            var connection: HttpURLConnection? = null
+            return try {
+                connection = (URL(baseUrl + path).openConnection() as HttpURLConnection).apply {
+                    requestMethod = "GET"
+                    connectTimeout = 10000
+                    readTimeout = 15000
+                    setRequestProperty("Accept", "application/json")
+                    setRequestProperty("User-Agent", "YouTube-Pipe/1.0")
+                }
+
+                val code = connection.responseCode
+                val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+                val body = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
+
+                if (code in 200..299 && !body.isNullOrBlank()) {
+                    body
+                } else {
+                    JSONObject().put("error", "Video service returned HTTP $code").toString()
+                }
+            } catch (_: Exception) {
+                JSONObject().put(
+                    "error",
+                    "Unable to connect to video service. Check your internet and try again."
+                ).toString()
+            } finally {
+                connection?.disconnect()
+            }
+        }
+
+        private fun sendResult(callback: String, json: String) {
+            activity.runOnUiThread {
+                activity.webView.evaluateJavascript(
+                    "window.$callback && window.$callback(${JSONObject.quote(json)});",
+                    null
+                )
+            }
+        }
+
+        @JavascriptInterface
+        fun openSettings() {
+            activity.runOnUiThread {
+                activity.startActivity(Intent(activity, SettingsActivity::class.java))
+            }
+        }
+    }
+}
